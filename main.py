@@ -45,13 +45,14 @@ def generate_block():
     shape = random.choice(shapes)
     return shape
 
-# Проверка на возможность размещения блока
+# Проверка на возможность размещения блока на сетке
 def can_place_block(board, block, x, y):
     for i, row in enumerate(block):
         for j, cell in enumerate(row):
             if cell:
-                if (x + j >= GRID_SIZE or y + i >= GRID_SIZE or
-                        board[y + i][x + j] != 0):
+                board_x = x + j
+                board_y = y + i
+                if board_x < 0 or board_x >= GRID_SIZE or board_y < 0 or board_y >= GRID_SIZE or board[board_y][board_x] != 0:
                     return False
     return True
 
@@ -88,9 +89,12 @@ def main():
 
     # Переменные игры
     blocks = [generate_block() for _ in range(3)]
-    block_positions = [(50, BOARD_HEIGHT + i * 120) for i in range(3)]
-    dragging = [False, False, False]
+    active_block_index = -1
+    dragging = False
     score = 0
+
+    # Позиции для блоков
+    block_positions = [(WIDTH // 4 * i + 30, BOARD_HEIGHT + 20) for i in range(3)]
 
     while running:
         screen.fill(WHITE)
@@ -103,24 +107,31 @@ def main():
                 mouse_x, mouse_y = event.pos
                 for i, (block, pos) in enumerate(zip(blocks, block_positions)):
                     bx, by = pos
-                    if bx <= mouse_x < bx + len(block[0]) * CELL_SIZE and by <= mouse_y < by + len(block) * CELL_SIZE:
-                        dragging[i] = True
+                    block_width = len(block[0]) * CELL_SIZE
+                    block_height = len(block) * CELL_SIZE
+                    if bx <= mouse_x < bx + block_width and by <= mouse_y < by + block_height:
+                        active_block_index = i
+                        dragging = True
+                        break
             elif event.type == pygame.MOUSEBUTTONUP:
-                for i, drag in enumerate(dragging):
-                    if drag:
-                        dragging[i] = False
-                        mouse_x, mouse_y = event.pos
-                        grid_x = (mouse_x - mouse_x % CELL_SIZE) // CELL_SIZE
-                        grid_y = (mouse_y - mouse_y % CELL_SIZE) // CELL_SIZE
-                        if can_place_block(board, blocks[i], grid_x, grid_y):
-                            place_block(board, blocks[i], grid_x, grid_y)
-                            score += clear_lines(board)
-                            blocks[i] = generate_block()
-                            block_positions[i] = (50, BOARD_HEIGHT + i * 120)
-            elif event.type == pygame.MOUSEMOTION:
-                for i, drag in enumerate(dragging):
-                    if drag:
-                        block_positions[i] = (event.pos[0] - CELL_SIZE, event.pos[1] - CELL_SIZE)
+                if dragging and active_block_index != -1:
+                    dragging = False
+                    mouse_x, mouse_y = event.pos
+                    # Преобразуем координаты в сетку
+                    grid_x = (mouse_x - (CELL_SIZE * len(blocks[active_block_index][0]) // 2)) // CELL_SIZE
+                    grid_y = (mouse_y - (CELL_SIZE * len(blocks[active_block_index]) // 2)) // CELL_SIZE
+                    if can_place_block(board, blocks[active_block_index], grid_x, grid_y):
+                        place_block(board, blocks[active_block_index], grid_x, grid_y)
+                        score += clear_lines(board)
+                        blocks[active_block_index] = generate_block()
+                        block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + 20)
+                    else:
+                        block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + 20)
+                    active_block_index = -1
+            elif event.type == pygame.MOUSEMOTION and dragging and active_block_index != -1:
+                mouse_x, mouse_y = event.pos
+                block_positions[active_block_index] = (mouse_x - (CELL_SIZE * len(blocks[active_block_index][0]) // 2),
+                                                      mouse_y - (CELL_SIZE * len(blocks[active_block_index]) // 2))
 
         # Отрисовка поля
         for i in range(GRID_SIZE):
