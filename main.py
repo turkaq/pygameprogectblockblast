@@ -5,11 +5,12 @@ import random
 pygame.init()
 
 # Размеры окна и поля
-WIDTH, HEIGHT = 400, 600
+WIDTH, HEIGHT = 400, 700
 GRID_SIZE = 8
 CELL_SIZE = 40
 BOARD_WIDTH = GRID_SIZE * CELL_SIZE
 BOARD_HEIGHT = GRID_SIZE * CELL_SIZE
+MARGIN_TOP = 50  # Отступ сверху для счётчика
 
 # Цвета
 WHITE = (255, 255, 255)
@@ -29,21 +30,15 @@ board = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
 # Генерация случайного блока
 def generate_block():
-    shapes = [
-        [[1, 1],
-         [1, 1]],
+    width = random.randint(1, 3)  # Ширина от 1 до 3 клеток
+    height = random.randint(1, 3)  # Высота от 1 до 3 клеток
+    block = [[random.choice([0, 1]) for _ in range(width)] for _ in range(height)]
 
-        [[1, 1, 1],
-         [0, 1, 0]],
+    # Гарантируем, что хотя бы одна клетка блока будет заполнена
+    if not any(cell for row in block for cell in row):
+        block[random.randint(0, height - 1)][random.randint(0, width - 1)] = 1
 
-        [[1, 1, 1]],
-
-        [[1],
-         [1],
-         [1]]
-    ]
-    shape = random.choice(shapes)
-    return shape
+    return block
 
 # Проверка на возможность размещения блока на сетке
 def can_place_block(board, block, x, y):
@@ -94,7 +89,7 @@ def main():
     score = 0
 
     # Позиции для блоков
-    block_positions = [(WIDTH // 4 * i + 30, BOARD_HEIGHT + 20) for i in range(3)]
+    block_positions = [(WIDTH // 4 * i + 30, BOARD_HEIGHT + MARGIN_TOP + 20) for i in range(3)]
 
     while running:
         screen.fill(WHITE)
@@ -119,14 +114,12 @@ def main():
                     mouse_x, mouse_y = event.pos
                     # Преобразуем координаты в сетку
                     grid_x = (mouse_x - (CELL_SIZE * len(blocks[active_block_index][0]) // 2)) // CELL_SIZE
-                    grid_y = (mouse_y - (CELL_SIZE * len(blocks[active_block_index]) // 2)) // CELL_SIZE
+                    grid_y = (mouse_y - MARGIN_TOP - (CELL_SIZE * len(blocks[active_block_index]) // 2)) // CELL_SIZE
                     if can_place_block(board, blocks[active_block_index], grid_x, grid_y):
                         place_block(board, blocks[active_block_index], grid_x, grid_y)
                         score += clear_lines(board)
                         blocks[active_block_index] = generate_block()
-                        block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + 20)
-                    else:
-                        block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + 20)
+                    block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + MARGIN_TOP + 20)
                     active_block_index = -1
             elif event.type == pygame.MOUSEMOTION and dragging and active_block_index != -1:
                 mouse_x, mouse_y = event.pos
@@ -136,7 +129,7 @@ def main():
         # Отрисовка поля
         for i in range(GRID_SIZE):
             for j in range(GRID_SIZE):
-                rect = pygame.Rect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                rect = pygame.Rect(j * CELL_SIZE, i * CELL_SIZE + MARGIN_TOP, CELL_SIZE, CELL_SIZE)
                 pygame.draw.rect(screen, GRAY if board[i][j] else WHITE, rect)
                 pygame.draw.rect(screen, BLACK, rect, 1)
 
@@ -150,9 +143,10 @@ def main():
                         pygame.draw.rect(screen, BLUE, rect)
                         pygame.draw.rect(screen, BLACK, rect, 1)
 
-        # Отображение счета
+        # Отображение счета (по центру над полем)
         score_text = font.render(f"Score: {score}", True, BLACK)
-        screen.blit(score_text, (10, BOARD_HEIGHT + 10))
+        score_x = (WIDTH - score_text.get_width()) // 2
+        screen.blit(score_text, (score_x, 10))
 
         pygame.display.flip()
         clock.tick(30)
