@@ -5,18 +5,18 @@ import random
 pygame.init()
 
 # Размеры окна и поля
-WIDTH, HEIGHT = 400, 700
+WIDTH, HEIGHT = 400, 600
 GRID_SIZE = 8
 CELL_SIZE = 40
 BOARD_WIDTH = GRID_SIZE * CELL_SIZE
 BOARD_HEIGHT = GRID_SIZE * CELL_SIZE
-MARGIN_TOP = 50  # Отступ сверху для счётчика
 
 # Цвета
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GRAY = (200, 200, 200)
 BLUE = (0, 102, 204)
+RED = (255, 0, 0)
 
 # Создание экрана
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -28,16 +28,16 @@ font = pygame.font.Font(None, 36)
 # Игровое поле
 board = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-# Генерация случайного блока
+# Позиция игрового поля по центру экрана
+BOARD_OFFSET_X = (WIDTH - BOARD_WIDTH) // 2
+BOARD_OFFSET_Y = (HEIGHT - BOARD_HEIGHT) // 2
+
+# Генерация случайного блока, который можно поставить на поле
 def generate_block():
-    width = random.randint(1, 3)  # Ширина от 1 до 3 клеток
-    height = random.randint(1, 3)  # Высота от 1 до 3 клеток
-    block = [[random.choice([0, 1]) for _ in range(width)] for _ in range(height)]
-
-    # Гарантируем, что хотя бы одна клетка блока будет заполнена
-    if not any(cell for row in block for cell in row):
-        block[random.randint(0, height - 1)][random.randint(0, width - 1)] = 1
-
+    # Генерация случайного размера блока (от 1x1 до 4x4)
+    width = random.randint(1, 4)
+    height = random.randint(1, 4)
+    block = [[1 for _ in range(width)] for _ in range(height)]
     return block
 
 # Проверка на возможность размещения блока на сетке
@@ -77,6 +77,50 @@ def clear_lines(board):
 
     return cleared
 
+# Главное меню
+def main_menu():
+    menu_font = pygame.font.Font(None, 48)
+    title_text = menu_font.render("Block Blast", True, BLUE)
+    start_text = font.render("Нажмите SPACE чтобы начать", True, BLACK)
+
+    while True:
+        screen.fill(WHITE)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, HEIGHT // 3))
+        screen.blit(start_text, (WIDTH // 2 - start_text.get_width() // 2, HEIGHT // 2))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return False  # Возвращаем False, чтобы выйти из игры
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    return True  # Возвращаем True, чтобы начать игру
+
+        pygame.display.flip()
+
+# Экран окончания игры
+def game_over_screen(score):
+    menu_font = pygame.font.Font(None, 48)
+    game_over_text = menu_font.render("Игра Окончена", True, RED)
+    score_text = font.render(f"Счет: {score}", True, BLACK)
+    restart_text = font.render("Нажмите SPACE чтобы начать заново", True, BLACK)
+
+    while True:
+        screen.fill(WHITE)
+        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 3))
+        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2))
+        screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT * 2 // 3))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return False  # Возвращаем False, чтобы выйти из игры
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    return True  # Возвращаем True, чтобы начать игру заново
+
+        pygame.display.flip()
+
 # Основной игровой цикл
 def main():
     running = True
@@ -87,9 +131,11 @@ def main():
     active_block_index = -1
     dragging = False
     score = 0
+    multiplier = 1  # Множитель очков
+    no_clear_counter = 0  # Счетчик ходов без уничтожения линий
 
     # Позиции для блоков
-    block_positions = [(WIDTH // 4 * i + 30, BOARD_HEIGHT + MARGIN_TOP + 20) for i in range(3)]
+    block_positions = [(WIDTH // 4 * i + 30, HEIGHT - 100) for i in range(3)]
 
     while running:
         screen.fill(WHITE)
@@ -113,13 +159,28 @@ def main():
                     dragging = False
                     mouse_x, mouse_y = event.pos
                     # Преобразуем координаты в сетку
-                    grid_x = (mouse_x - (CELL_SIZE * len(blocks[active_block_index][0]) // 2)) // CELL_SIZE
-                    grid_y = (mouse_y - MARGIN_TOP - (CELL_SIZE * len(blocks[active_block_index]) // 2)) // CELL_SIZE
+                    grid_x = (mouse_x - BOARD_OFFSET_X) // CELL_SIZE
+                    grid_y = (mouse_y - BOARD_OFFSET_Y) // CELL_SIZE
                     if can_place_block(board, blocks[active_block_index], grid_x, grid_y):
                         place_block(board, blocks[active_block_index], grid_x, grid_y)
-                        score += clear_lines(board)
+                        # Увеличиваем счет на количество клеток в блоке, умноженное на множитель
+                        for row in blocks[active_block_index]:
+                            score += sum(row) * multiplier
+                        # Проверяем, уничтожаются ли линии
+                        cleared_lines = clear_lines(board)
+                        if cleared_lines > 0:
+                            score += cleared_lines * 10 * multiplier  # Дополнительные очки за линии
+                            multiplier += 1  # Увеличиваем множитель
+                            no_clear_counter = 0  # Сбрасываем счетчик
+                        else:
+                            no_clear_counter += 1
+                            if no_clear_counter >= 2:
+                                multiplier = 1  # Сбрасываем множитель
                         blocks[active_block_index] = generate_block()
-                    block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, BOARD_HEIGHT + MARGIN_TOP + 20)
+                        block_positions[active_block_index] = (WIDTH // 4 * active_block_index + 30, HEIGHT - 100)
+                    else:
+                        # Если блок нельзя поставить, игра завершается
+                        running = False
                     active_block_index = -1
             elif event.type == pygame.MOUSEMOTION and dragging and active_block_index != -1:
                 mouse_x, mouse_y = event.pos
@@ -129,8 +190,8 @@ def main():
         # Отрисовка поля
         for i in range(GRID_SIZE):
             for j in range(GRID_SIZE):
-                rect = pygame.Rect(j * CELL_SIZE, i * CELL_SIZE + MARGIN_TOP, CELL_SIZE, CELL_SIZE)
-                pygame.draw.rect(screen, GRAY if board[i][j] else WHITE, rect)
+                rect = pygame.Rect(BOARD_OFFSET_X + j * CELL_SIZE, BOARD_OFFSET_Y + i * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                pygame.draw.rect(screen, BLUE if board[i][j] else WHITE, rect)
                 pygame.draw.rect(screen, BLACK, rect, 1)
 
         # Отрисовка блоков
@@ -143,15 +204,22 @@ def main():
                         pygame.draw.rect(screen, BLUE, rect)
                         pygame.draw.rect(screen, BLACK, rect, 1)
 
-        # Отображение счета (по центру над полем)
+        # Отображение счета и множителя
         score_text = font.render(f"Score: {score}", True, BLACK)
-        score_x = (WIDTH - score_text.get_width()) // 2
-        screen.blit(score_text, (score_x, 10))
+        screen.blit(score_text, (10, 10))
+
+        multiplier_text = font.render(f"Multiplier: x{multiplier}", True, BLACK)
+        screen.blit(multiplier_text, (WIDTH - 150, 10))
 
         pygame.display.flip()
         clock.tick(30)
 
-    pygame.quit()
+    return score
 
 if __name__ == "__main__":
-    main()
+    while True:
+        if not main_menu():  # Если в главном меню нажали на выход
+            break  # Выход из игры
+        score = main()  # Запуск игры
+        if not game_over_screen(score):  # Если на экране окончания игры нажали на выход
+            break  # Выход из игры
