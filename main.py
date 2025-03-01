@@ -17,7 +17,7 @@ BLUE = (0, 102, 204)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 
-SCORES_FILE = "scores.txt"
+SCORES_FILE = "Explanatory note.txt"
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
